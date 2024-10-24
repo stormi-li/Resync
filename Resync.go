@@ -10,23 +10,25 @@ import (
 )
 
 type Client struct {
-	ripcClient *ripc.Client
-	namespace  string
+	ripcClient  *ripc.Client
+	redisClient *redis.Client
+	Namespace   string
+	Context     context.Context
 }
 
-func NewClient(addr string) (*Client, error) {
-	client := Client{namespace: ""}
-	ripcClient, err := ripc.NewClient(addr)
-	if err != nil {
-		return nil, err
+func NewClient(redisClient *redis.Client) *Client {
+	ripcClient := ripc.NewClient(redisClient)
+	return &Client{
+		ripcClient:  ripcClient,
+		redisClient: redisClient,
+		Namespace:   ripcClient.Namespace,
+		Context:     ripcClient.Context,
 	}
-	client.ripcClient = ripcClient
-	return &client, nil
 }
 
-func (c *Client) SetNameSpace(str string) {
-	c.namespace = str + ":"
-	c.ripcClient.SetNameSpace(str)
+func (c *Client) SetNamespace(namespace string) {
+	c.Namespace = namespace + ":"
+	c.ripcClient.SetNamespace(namespace)
 }
 
 type Lock struct {
@@ -35,33 +37,37 @@ type Lock struct {
 	stop        chan struct{}
 	ripcClient  *ripc.Client
 	redisClient *redis.Client
-	ctx         context.Context
+	Namespace   string
+	Context     context.Context
 }
 
 func (c *Client) NewLock(lockName string) *Lock {
-	lockName = c.namespace + lockName
-	lock := Lock{}
-	lock.ripcClient = c.ripcClient
-	lock.uuid = uuid.New().String()
-	lock.lockName = lockName
-	lock.stop = make(chan struct{}, 1)
-	lock.ctx = context.Background()
-	lock.redisClient = lock.ripcClient.RedisClient
-	return &lock
+	return &Lock{
+		uuid:        uuid.NewString(),
+		lockName:    lockName,
+		stop:        make(chan struct{}, 1),
+		ripcClient:  c.ripcClient,
+		redisClient: c.redisClient,
+		Namespace:   c.Namespace,
+		Context:     c.Context,
+	}
 }
 
 func (l *Lock) Lock() {
 	for {
 		var ok bool
-		ok, _ = l.redisClient.SetNX(l.ctx, l.lockName, l.uuid, 3*time.Second).Result()
+		//尝试占有锁-----------------------------------------redis代码
+		ok, _ = l.redisClient.SetNX(l.Context, l.Namespace+l.lockName, l.uuid, 3*time.Second).Result()
 
 		if ok {
+			//看门口协程
 			go func() {
 				ticker := time.NewTicker(1 * time.Second)
 				defer ticker.Stop()
 				for {
 					select {
 					case <-ticker.C:
+						//如果占有锁则更新过期时间
 						l.updateExpiryIfValueMatches()
 					case <-l.stop:
 						return
@@ -70,7 +76,8 @@ func (l *Lock) Lock() {
 			}()
 			break
 		} else {
-			l.ripcClient.Wait(l.ctx, l.lockName, 3*time.Second)
+			//阻塞三秒，阻塞时可以被唤醒
+			l.ripcClient.Wait(l.lockName, 3*time.Second)
 		}
 	}
 }
@@ -78,7 +85,7 @@ func (l *Lock) Lock() {
 func (l *Lock) Unlock() {
 	l.stop <- struct{}{}
 	l.deleteIfValueMatches()
-	l.ripcClient.Notify(l.ctx, l.lockName, "unlock")
+	l.ripcClient.Notify(l.lockName, "unlock")
 
 }
 
@@ -103,8 +110,8 @@ func (l *Lock) updateExpiryIfValueMatches() (bool, error) {
             return 0
         end
     `
-
-	result, err := l.redisClient.Eval(l.ctx, script, []string{l.lockName}, l.uuid, 3).Result()
+	//执行lua脚本-----------------------------------------redis代码
+	result, err := l.redisClient.Eval(l.Context, script, []string{l.Namespace + l.lockName}, l.uuid, 3).Result()
 	if err != nil {
 		return false, err
 	}
@@ -123,13 +130,15 @@ func (l *Lock) deleteIfValueMatches() (bool, error) {
 			return 0  -- 0表示值不匹配
 		end
 	`
-	result, err := l.ripcClient.RedisClient.Eval(l.ctx, luaScript, []string{l.lockName}, l.uuid).Result()
+	//执行lua脚本-----------------------------------------redis代码
+	result, err := l.redisClient.Eval(l.Context, luaScript, []string{l.Namespace + l.lockName}, l.uuid).Result()
 	if err != nil {
 		return false, err
 	}
 	return result.(int64) == 1, nil
 }
 
+//分布式读写锁，待开发
 // type ReadWriteLock struct {
 // 	writeLock *Lock
 // 	readLock  *Lock
