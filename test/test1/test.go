@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	resync "github.com/stormi-li/Resync"
 )
 
 func main() {
-	client, _ := resync.NewClient("118.25.196.166:6379")
-	client.SetNameSpace("fsdf")
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: "118.25.196.166:6379",
+	})
+	client := resync.NewClient(redisClient)
+	client.SetNamespace("fsdf")
 	go func() {
 		lock := client.NewLock("lock1")
 		lock.Lock()
