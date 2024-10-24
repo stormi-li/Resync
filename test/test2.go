@@ -8,7 +8,8 @@ import (
 )
 
 func main() {
-	client, _ := resync.NewClient("localhost:6379")
+	client, _ := resync.NewClient("118.25.196.166:6379")
+	client.SetNameSpace("fsdfs")
 	go func() {
 		lock := client.NewLock("lock1")
 		lock.Lock()

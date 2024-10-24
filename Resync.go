@@ -11,16 +11,22 @@ import (
 
 type Client struct {
 	ripcClient *ripc.Client
+	namespace  string
 }
 
 func NewClient(addr string) (*Client, error) {
-	client := Client{}
+	client := Client{namespace: ""}
 	ripcClient, err := ripc.NewClient(addr)
 	if err != nil {
 		return nil, err
 	}
 	client.ripcClient = ripcClient
 	return &client, nil
+}
+
+func (c *Client) SetNameSpace(str string) {
+	c.namespace = str + ":"
+	c.ripcClient.SetNameSpace(str)
 }
 
 type Lock struct {
@@ -32,9 +38,10 @@ type Lock struct {
 	ctx         context.Context
 }
 
-func (client *Client) NewLock(lockName string) *Lock {
+func (c *Client) NewLock(lockName string) *Lock {
+	lockName = c.namespace + lockName
 	lock := Lock{}
-	lock.ripcClient = client.ripcClient
+	lock.ripcClient = c.ripcClient
 	lock.uuid = uuid.New().String()
 	lock.lockName = lockName
 	lock.stop = make(chan struct{}, 1)
