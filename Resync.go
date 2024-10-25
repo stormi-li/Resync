@@ -9,18 +9,20 @@ import (
 )
 
 type Client struct {
-	ripcClient  *ripc.Client
 	redisClient *redis.Client
+	ripcClient  *ripc.Client
 	namespace   string
 	ctx         context.Context
 }
 
+const lockPrefix = "stormi:lock:"
+
 func NewClient(redisClient *redis.Client, namespace string) *Client {
 	ripcClient := ripc.NewClient(redisClient, namespace)
 	return &Client{
-		ripcClient:  ripcClient,
 		redisClient: redisClient,
-		namespace:   namespace + "",
+		ripcClient:  ripcClient,
+		namespace:   namespace + ":" + lockPrefix,
 		ctx:         context.Background(),
 	}
 }
@@ -33,6 +35,6 @@ func (c *Client) NewLock(lockName string) *Lock {
 		ripcClient:  c.ripcClient,
 		redisClient: c.redisClient,
 		namespace:   c.namespace,
-		context:     c.ctx,
+		ctx:         c.ctx,
 	}
 }

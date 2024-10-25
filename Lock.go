@@ -15,14 +15,14 @@ type Lock struct {
 	ripcClient  *ripc.Client
 	redisClient *redis.Client
 	namespace   string
-	context     context.Context
+	ctx         context.Context
 }
 
 func (l *Lock) Lock() {
 	for {
 		var ok bool
 		//尝试占有锁-----------------------------------------redis代码
-		ok, _ = l.redisClient.SetNX(l.context, l.namespace+l.lockName, l.uuid, 3*time.Second).Result()
+		ok, _ = l.redisClient.SetNX(l.ctx, l.namespace+l.lockName, l.uuid, 3*time.Second).Result()
 
 		if ok {
 			//看门口协程
@@ -76,7 +76,7 @@ func (l *Lock) updateExpiryIfValueMatches() (bool, error) {
         end
     `
 	//执行lua脚本-----------------------------------------redis代码
-	result, err := l.redisClient.Eval(l.context, script, []string{l.namespace + l.lockName}, l.uuid, 3).Result()
+	result, err := l.redisClient.Eval(l.ctx, script, []string{l.namespace + l.lockName}, l.uuid, 3).Result()
 	if err != nil {
 		return false, err
 	}
@@ -96,7 +96,7 @@ func (l *Lock) deleteIfValueMatches() (bool, error) {
 		end
 	`
 	//执行lua脚本-----------------------------------------redis代码
-	result, err := l.redisClient.Eval(l.context, luaScript, []string{l.namespace + l.lockName}, l.uuid).Result()
+	result, err := l.redisClient.Eval(l.ctx, luaScript, []string{l.namespace + l.lockName}, l.uuid).Result()
 	if err != nil {
 		return false, err
 	}
