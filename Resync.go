@@ -20,7 +20,7 @@ func NewClient(redisClient *redis.Client, namespace string) *Client {
 	return &Client{
 		ripcClient:  ripcClient,
 		redisClient: redisClient,
-		namespace:   namespace,
+		namespace:   namespace + "",
 		ctx:         context.Background(),
 	}
 }
