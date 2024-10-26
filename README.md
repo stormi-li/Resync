@@ -1,24 +1,23 @@
-# Resync 框架
+# RESYNC Guides
 
-## 简介
+Simple and secure distributed lock library.
 
-Resync 是一个基于 Redis 的分布式锁框架，能够为分布式系统提供高效、安全的锁管理机制，确保多进程的并发操作安全。
+# Overview
 
-## 功能
+- Support watch dog
+- Support lock id
+- Support blocking and wake-up
+- Every feature comes with tests
+- Developer Friendly
 
-- 支持看门狗机制：持锁进程可以定期对锁续约，防止由于超时导致锁意外释放。
-- 支持锁身份识别：进程可以在续约和释放锁时验证自己是否是锁的合法持有者。
-- 支持阻塞和唤醒：抢占锁失败后能够进入阻塞状态，等待自动唤醒或被其它进程唤醒。
+# Install
 
-## 安装
 
 ```shell
-go get github.com/stormi-li/Resync
+go get -u github.com/stormi-li/Resync
 ```
 
-## 使用
-
-**示例代码**：
+# Quick Start
 
 ```go
 package main
@@ -31,34 +30,85 @@ import (
 	resync "github.com/stormi-li/Resync"
 )
 
-var redis_addr = "your redis addr"
+var redisAddr = “localhost:6379”
+var password = “your password”
 
 func main() {
-	go func() {
-		LockProcess("1")
-	}()
-	go func() {
-		LockProcess("2")
-	}()
-	go func() {
-		LockProcess("3")
-	}()
-	time.Sleep(4 * time.Second)
-}
-
-func LockProcess(msg string) {
 	redisClient := redis.NewClient(&redis.Options{
-		Addr: redis_addr,
+		Addr:     redisAddr,
+		Password: password,
 	})
-	client := resync.NewClient(redisClient)
-	lock := client.NewLock("lock1") //创建一个叫lock1的分布式锁
-	lock.Lock()
-	fmt.Println(lock.IsValid()) //检查是否持有锁
-	fmt.Println(msg)
-	time.Sleep(1 * time.Second)
-	lock.Unlock()
+	client := resync.NewClient(redisClient, "lock-namespace")
+	l := client.NewLock("mylock")
+	l.Lock()
+	fmt.Println("process locked")
+	time.Sleep(5 * time.Second)
+	l.Unlock()
+	fmt.Println("process unlocked")
 }
 ```
 
+# Interface - resync
 
+## NewClient
 
+### Create resync client
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/go-redis/redis/v8"
+	resync "github.com/stormi-li/Resync"
+)
+
+var redisAddr = “localhost:6379”
+var password = “your password”
+
+func main() {
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: password,
+	})
+	client := resync.NewClient(redisClient, "lock-namespace")
+}
+```
+
+The first parameter is a redis client of successful connection, the second parameter is a unique namespace.
+
+# Interface - resync.Client
+
+## NewLock
+
+### Create a distrubuted lock
+```go
+lock := client.NewLock("mylock")
+```
+The first parameter is a unique lock name.
+
+# Interface - resync.Lock
+
+## Lock
+
+### Preempt lock
+```go
+lock.Lock()
+```
+Failure to preempt a lock will block the process.
+
+## Unlock 
+
+### Release lock
+```go
+lock.Unlock()
+```
+
+# Community
+
+## Ask
+
+### How do I ask a good question?
+- Email - 2785782829@qq.com
+- Github Issues - https://github.com/stormi-li/Resync/issues
