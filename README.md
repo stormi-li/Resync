@@ -86,7 +86,7 @@ The first parameter is a redis client of successful connection, the second param
 ```go
 lock := client.NewLock("mylock")
 ```
-The first parameter is a unique lock name.
+The parameter is a unique lock name.
 
 # Interface - resync.Lock
 
